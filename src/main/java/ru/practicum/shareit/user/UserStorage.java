@@ -16,6 +16,9 @@ public interface UserStorage {
     // Возвращает пользователя по id
     User getById(Long userId);
 
+    // Возвращает пользователя по email
+    User getByEmail(String email);
+
     // Возвращает всех пользователей
     Collection<User> getAll();
 

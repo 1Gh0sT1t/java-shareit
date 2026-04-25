@@ -12,7 +12,7 @@ import java.util.Collection;
  */
 @Service
 public class UserServiceImpl implements UserService {
-    // Хранилище пользователей
+
     private final UserStorage userStorage;
 
     public UserServiceImpl(UserStorage userStorage) {
@@ -60,16 +60,14 @@ public class UserServiceImpl implements UserService {
             savedUser.setEmail(user.getEmail());
         }
 
-        // Сохраняем обновлённого пользователя
         return userStorage.update(savedUser);
     }
 
     @Override
     public User getById(Long userId) {
-        // Получаем пользователя по id
+
         User user = userStorage.getById(userId);
 
-        // Проверяем, что пользователь найден
         if (user == null) {
             throw new NotFoundException("Пользователь с таким id не найден");
         }
@@ -94,21 +92,17 @@ public class UserServiceImpl implements UserService {
         userStorage.delete(userId);
     }
 
-    // Проверяет, что email заполнен при создании
     private void validateEmailForCreate(User user) {
         if (user.getEmail() == null || user.getEmail().isBlank()) {
             throw new ValidationException("Электронная почта не должна быть пустой");
         }
     }
 
-    // Проверяет, что email уникален
     private void checkEmailUnique(String email, Long userId) {
-        for (User savedUser : userStorage.getAll()) {
-            if (savedUser.getEmail() != null
-                    && savedUser.getEmail().equals(email)
-                    && !savedUser.getId().equals(userId)) {
-                throw new ConflictException("Пользователь с таким email уже существует");
-            }
+        User userWithEmail = userStorage.getByEmail(email);
+
+        if (userWithEmail != null && !userWithEmail.getId().equals(userId)) {
+            throw new ConflictException("Пользователь с таким email уже существует");
         }
     }
 }

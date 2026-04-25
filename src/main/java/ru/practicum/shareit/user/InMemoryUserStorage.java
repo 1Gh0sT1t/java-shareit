@@ -41,6 +41,18 @@ public class InMemoryUserStorage implements UserStorage {
     }
 
     @Override
+    public User getByEmail(String email) {
+        // Ищем пользователя по email
+        for (User user : users.values()) {
+            if (user.getEmail() != null && user.getEmail().equals(email)) {
+                return user;
+            }
+        }
+
+        return null;
+    }
+
+    @Override
     public Collection<User> getAll() {
         // Возвращаем всех пользователей
         return users.values();

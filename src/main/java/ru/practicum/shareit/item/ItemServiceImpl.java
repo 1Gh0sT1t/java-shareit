@@ -47,23 +47,8 @@ public class ItemServiceImpl implements ItemService {
 
     @Override
     public Item update(Item item, Long userId) {
-        // Проверяем, что идентификатор вещи указан
-        if (item.getId() == null) {
-            throw new ValidationException("Идентификатор вещи не указан");
-        }
-
-        // Получаем текущую вещь
-        Item savedItem = itemStorage.getById(item.getId());
-
-        // Проверяем, что вещь существует
-        if (savedItem == null) {
-            throw new NotFoundException("Вещь с таким id не найдена");
-        }
-
-        // Проверяем, что вещь редактирует владелец
-        if (savedItem.getOwner() == null || !savedItem.getOwner().getId().equals(userId)) {
-            throw new NotFoundException("Редактировать вещь может только владелец");
-        }
+        // Валидируем вещь перед обновлением
+        Item savedItem = validateItemForUpdate(item, userId);
 
         // Обновляем название, если оно пришло
         if (item.getName() != null) {
@@ -140,5 +125,28 @@ public class ItemServiceImpl implements ItemService {
         if (item.getAvailable() == null) {
             throw new ValidationException("Статус доступности вещи должен быть указан");
         }
+    }
+
+    // Проверяет корректность данных при обновлении вещи
+    private Item validateItemForUpdate(Item item, Long userId) {
+        // Проверяем, что идентификатор вещи указан
+        if (item.getId() == null) {
+            throw new ValidationException("Идентификатор вещи не указан");
+        }
+
+        // Получаем текущую вещь
+        Item savedItem = itemStorage.getById(item.getId());
+
+        // Проверяем, что вещь существует
+        if (savedItem == null) {
+            throw new NotFoundException("Вещь с таким id не найдена");
+        }
+
+        // Проверяем, что вещь редактирует владелец
+        if (savedItem.getOwner() == null || !savedItem.getOwner().getId().equals(userId)) {
+            throw new NotFoundException("Редактировать вещь может только владелец");
+        }
+
+        return savedItem;
     }
 }
