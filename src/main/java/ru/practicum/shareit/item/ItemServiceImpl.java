@@ -1,56 +1,56 @@
 package ru.practicum.shareit.item;
 
 import org.springframework.stereotype.Service;
+import ru.practicum.shareit.booking.Booking;
+import ru.practicum.shareit.booking.BookingRepository;
+import ru.practicum.shareit.booking.BookingStatus;
+import ru.practicum.shareit.booking.dto.BookingShortDto;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.exception.ValidationException;
+import ru.practicum.shareit.item.dto.CommentDto;
+import ru.practicum.shareit.item.dto.ItemResponseDto;
+import ru.practicum.shareit.item.model.Comment;
 import ru.practicum.shareit.item.model.Item;
 import ru.practicum.shareit.user.User;
-import ru.practicum.shareit.user.UserStorage;
+import ru.practicum.shareit.user.UserRepository;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * Сервис для работы с вещами.
  */
 @Service
 public class ItemServiceImpl implements ItemService {
-    // Хранилище вещей
-    private final ItemStorage itemStorage;
+    private final ItemRepository itemRepository;
+    private final UserRepository userRepository;
+    private final BookingRepository bookingRepository;
+    private final CommentRepository commentRepository;
 
-    // Хранилище пользователей
-    private final UserStorage userStorage;
-
-    public ItemServiceImpl(ItemStorage itemStorage, UserStorage userStorage) {
-        this.itemStorage = itemStorage;
-        this.userStorage = userStorage;
+    public ItemServiceImpl(ItemRepository itemRepository,
+                           UserRepository userRepository,
+                           BookingRepository bookingRepository,
+                           CommentRepository commentRepository) {
+        this.itemRepository = itemRepository;
+        this.userRepository = userRepository;
+        this.bookingRepository = bookingRepository;
+        this.commentRepository = commentRepository;
     }
 
     @Override
     public Item create(Item item, Long userId) {
-        // Проверяем, что владелец существует
-        User owner = userStorage.getById(userId);
-
-        if (owner == null) {
-            throw new NotFoundException("Пользователь с таким id не найден");
-        }
-
-        // Проверяем обязательные поля вещи
+        User owner = getUserOrThrow(userId);
         validateItemForCreate(item);
-
-        // Назначаем владельца вещи
         item.setOwner(owner);
-
-        // Сохраняем вещь
-        return itemStorage.create(item);
+        return itemRepository.save(item);
     }
 
     @Override
     public Item update(Item item, Long userId) {
-        // Валидируем вещь перед обновлением
         Item savedItem = validateItemForUpdate(item, userId);
 
-        // Обновляем название, если оно пришло
         if (item.getName() != null) {
             if (item.getName().isBlank()) {
                 throw new ValidationException("Название вещи не должно быть пустым");
@@ -58,7 +58,6 @@ public class ItemServiceImpl implements ItemService {
             savedItem.setName(item.getName());
         }
 
-        // Обновляем описание, если оно пришло
         if (item.getDescription() != null) {
             if (item.getDescription().isBlank()) {
                 throw new ValidationException("Описание вещи не должно быть пустым");
@@ -66,53 +65,109 @@ public class ItemServiceImpl implements ItemService {
             savedItem.setDescription(item.getDescription());
         }
 
-        // Обновляем статус доступности, если он пришёл
         if (item.getAvailable() != null) {
             savedItem.setAvailable(item.getAvailable());
         }
 
-        // Сохраняем обновлённую вещь
-        return itemStorage.update(savedItem);
+        return itemRepository.save(savedItem);
     }
 
     @Override
-    public Item getById(Long itemId) {
-        // Получаем вещь по id
-        Item item = itemStorage.getById(itemId);
+    public ItemResponseDto getById(Long itemId, Long userId) {
+        Item item = getItemOrThrow(itemId);
 
-        // Проверяем, что вещь найдена
-        if (item == null) {
-            throw new NotFoundException("Вещь с таким id не найдена");
+        if (userId != null && item.getOwner().getId().equals(userId)) {
+            return toResponseDtoWithBookings(item);
         }
 
-        return item;
+        return ItemMapper.toItemResponseDto(item, null, null, getComments(item.getId()));
     }
 
     @Override
-    public Collection<Item> getByOwnerId(Long ownerId) {
-        // Проверяем, что пользователь существует
-        User owner = userStorage.getById(ownerId);
+    public Collection<ItemResponseDto> getByOwnerId(Long ownerId) {
+        getUserOrThrow(ownerId);
 
-        if (owner == null) {
-            throw new NotFoundException("Пользователь с таким id не найден");
-        }
-
-        // Возвращаем все вещи владельца
-        return itemStorage.getByOwnerId(ownerId);
+        return itemRepository.findByOwnerId(ownerId)
+                .stream()
+                .map(this::toResponseDtoWithBookings)
+                .toList();
     }
 
     @Override
     public Collection<Item> search(String text) {
-        // Если строка пустая, возвращаем пустой список
         if (text == null || text.isBlank()) {
             return Collections.emptyList();
         }
 
-        // Ищем вещи по тексту
-        return itemStorage.search(text);
+        return itemRepository.search(text);
     }
 
-    // Проверяет обязательные поля вещи при создании
+    @Override
+    public CommentDto addComment(Long itemId, Long userId, CommentDto commentDto) {
+        Item item = getItemOrThrow(itemId);
+        User author = getUserOrThrow(userId);
+
+        validateComment(commentDto);
+
+        boolean hasCompletedBooking = bookingRepository.existsByItemIdAndBookerIdAndEndBefore(
+                itemId,
+                userId,
+                LocalDateTime.now()
+        );
+
+        if (!hasCompletedBooking) {
+            throw new ValidationException("Оставить комментарий может только пользователь с завершённым бронированием");
+        }
+
+        Comment comment = new Comment(
+                null,
+                commentDto.getText(),
+                item,
+                author,
+                LocalDateTime.now()
+        );
+
+        return CommentMapper.toCommentDto(commentRepository.save(comment));
+    }
+
+    private ItemResponseDto toResponseDtoWithBookings(Item item) {
+        LocalDateTime now = LocalDateTime.now();
+
+        Booking lastBooking = bookingRepository
+                .findFirstByItemIdAndStatusAndEndBeforeOrderByEndDesc(
+                        item.getId(),
+                        BookingStatus.APPROVED,
+                        now
+                )
+                .orElse(null);
+
+        Booking nextBooking = bookingRepository
+                .findFirstByItemIdAndStatusAndStartAfterOrderByStartAsc(
+                        item.getId(),
+                        BookingStatus.APPROVED,
+                        now
+                )
+                .orElse(null);
+
+        BookingShortDto lastDto = ItemMapper.toBookingShortDto(lastBooking);
+        BookingShortDto nextDto = ItemMapper.toBookingShortDto(nextBooking);
+
+        return ItemMapper.toItemResponseDto(item, lastDto, nextDto, getComments(item.getId()));
+    }
+
+    private List<CommentDto> getComments(Long itemId) {
+        return commentRepository.findByItemId(itemId)
+                .stream()
+                .map(CommentMapper::toCommentDto)
+                .toList();
+    }
+
+    private void validateComment(CommentDto dto) {
+        if (dto.getText() == null || dto.getText().isBlank()) {
+            throw new ValidationException("Текст комментария не должен быть пустым");
+        }
+    }
+
     private void validateItemForCreate(Item item) {
         if (item.getName() == null || item.getName().isBlank()) {
             throw new ValidationException("Название вещи не должно быть пустым");
@@ -127,26 +182,27 @@ public class ItemServiceImpl implements ItemService {
         }
     }
 
-    // Проверяет корректность данных при обновлении вещи
     private Item validateItemForUpdate(Item item, Long userId) {
-        // Проверяем, что идентификатор вещи указан
         if (item.getId() == null) {
             throw new ValidationException("Идентификатор вещи не указан");
         }
 
-        // Получаем текущую вещь
-        Item savedItem = itemStorage.getById(item.getId());
+        Item savedItem = getItemOrThrow(item.getId());
 
-        // Проверяем, что вещь существует
-        if (savedItem == null) {
-            throw new NotFoundException("Вещь с таким id не найдена");
-        }
-
-        // Проверяем, что вещь редактирует владелец
-        if (savedItem.getOwner() == null || !savedItem.getOwner().getId().equals(userId)) {
+        if (!savedItem.getOwner().getId().equals(userId)) {
             throw new NotFoundException("Редактировать вещь может только владелец");
         }
 
         return savedItem;
+    }
+
+    private User getUserOrThrow(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("Пользователь с таким id не найден"));
+    }
+
+    private Item getItemOrThrow(Long itemId) {
+        return itemRepository.findById(itemId)
+                .orElseThrow(() -> new NotFoundException("Вещь с таким id не найдена"));
     }
 }

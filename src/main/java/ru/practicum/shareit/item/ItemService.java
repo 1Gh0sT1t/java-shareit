@@ -1,5 +1,7 @@
 package ru.practicum.shareit.item;
 
+import ru.practicum.shareit.item.dto.CommentDto;
+import ru.practicum.shareit.item.dto.ItemResponseDto;
 import ru.practicum.shareit.item.model.Item;
 
 import java.util.Collection;
@@ -9,18 +11,15 @@ import java.util.Collection;
  */
 public interface ItemService {
 
-    // Создаёт новую вещь
     Item create(Item item, Long userId);
 
-    // Обновляет вещь
     Item update(Item item, Long userId);
 
-    // Возвращает вещь по id
-    Item getById(Long itemId);
+    ItemResponseDto getById(Long itemId, Long userId);
 
-    // Возвращает все вещи владельца
-    Collection<Item> getByOwnerId(Long ownerId);
+    Collection<ItemResponseDto> getByOwnerId(Long ownerId);
 
-    // Ищет вещи по тексту
     Collection<Item> search(String text);
+
+    CommentDto addComment(Long itemId, Long userId, CommentDto commentDto);
 }

@@ -2,115 +2,199 @@ package ru.practicum.shareit.user;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import ru.practicum.shareit.exception.ConflictException;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.exception.ValidationException;
 
+import java.util.List;
+import java.util.Optional;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
- * Тесты для сервиса пользователей.
+ * Тесты сервиса пользователей.
  */
+@ExtendWith(MockitoExtension.class)
 class UserServiceImplTest {
-    // Сервис пользователей
+    @Mock
+    private UserRepository userRepository;
+
+    @InjectMocks
     private UserServiceImpl userService;
 
-    // Хранилище пользователей
-    private UserStorage userStorage;
+    private User user;
 
     @BeforeEach
     void setUp() {
-        // Создаём хранилище и сервис
-        userStorage = new InMemoryUserStorage();
-        userService = new UserServiceImpl(userStorage);
+        user = new User(1L, "Marat", "marat@mail.ru");
     }
 
     @Test
     void shouldCreateUser() {
-        // Создаём пользователя
-        User user = new User(null, "Marat", "marat@mail.ru");
+        User newUser = new User(null, "Marat", "marat@mail.ru");
 
-        // Сохраняем пользователя
-        User savedUser = userService.create(user);
+        when(userRepository.findByEmail(newUser.getEmail())).thenReturn(Optional.empty());
+        when(userRepository.save(newUser)).thenReturn(user);
 
-        // Проверяем, что пользователь сохранился
-        assertEquals(1L, savedUser.getId());
-        assertEquals("Marat", savedUser.getName());
-        assertEquals("marat@mail.ru", savedUser.getEmail());
+        User result = userService.create(newUser);
+
+        assertEquals(user.getId(), result.getId());
+        assertEquals(user.getName(), result.getName());
+        assertEquals(user.getEmail(), result.getEmail());
+
+        verify(userRepository).findByEmail(newUser.getEmail());
+        verify(userRepository).save(newUser);
     }
 
     @Test
-    void shouldThrowExceptionWhenEmailIsBlank() {
-        // Создаём пользователя с пустым email
-        User user = new User(null, "Marat", "");
+    void shouldThrowValidationExceptionWhenEmailIsNullOnCreate() {
+        User newUser = new User(null, "Marat", null);
 
-        // Проверяем ошибку
-        assertThrows(ValidationException.class, () -> userService.create(user));
+        assertThrows(ValidationException.class, () -> userService.create(newUser));
     }
 
     @Test
-    void shouldThrowExceptionWhenEmailAlreadyExists() {
-        // Сохраняем первого пользователя
-        userService.create(new User(null, "One", "same@mail.ru"));
+    void shouldThrowValidationExceptionWhenEmailIsBlankOnCreate() {
+        User newUser = new User(null, "Marat", " ");
 
-        // Создаём второго пользователя с тем же email
-        User secondUser = new User(null, "Two", "same@mail.ru");
+        assertThrows(ValidationException.class, () -> userService.create(newUser));
+    }
 
-        // Проверяем ошибку
-        assertThrows(ConflictException.class, () -> userService.create(secondUser));
+    @Test
+    void shouldThrowConflictExceptionWhenEmailAlreadyExistsOnCreate() {
+        User newUser = new User(null, "Other", "marat@mail.ru");
+
+        when(userRepository.findByEmail(newUser.getEmail())).thenReturn(Optional.of(user));
+
+        assertThrows(ConflictException.class, () -> userService.create(newUser));
     }
 
     @Test
     void shouldUpdateOnlyName() {
-        // Сохраняем пользователя
-        User savedUser = userService.create(new User(null, "Marat", "marat@mail.ru"));
+        User updateUser = new User(1L, "New Name", null);
+        User savedUser = new User(1L, "Marat", "marat@mail.ru");
+        User expectedUser = new User(1L, "New Name", "marat@mail.ru");
 
-        // Создаём объект для частичного обновления
-        User userForUpdate = new User(savedUser.getId(), "New Name", null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(savedUser));
+        when(userRepository.save(savedUser)).thenReturn(expectedUser);
 
-        // Обновляем пользователя
-        User updatedUser = userService.update(userForUpdate);
+        User result = userService.update(updateUser);
 
-        // Проверяем, что имя поменялось, а email остался
-        assertEquals("New Name", updatedUser.getName());
-        assertEquals("marat@mail.ru", updatedUser.getEmail());
+        assertEquals(expectedUser.getId(), result.getId());
+        assertEquals(expectedUser.getName(), result.getName());
+        assertEquals(expectedUser.getEmail(), result.getEmail());
+
+        verify(userRepository).findById(1L);
+        verify(userRepository).save(savedUser);
     }
 
     @Test
     void shouldUpdateOnlyEmail() {
-        // Сохраняем пользователя
-        User savedUser = userService.create(new User(null, "Marat", "marat@mail.ru"));
+        User updateUser = new User(1L, null, "new@mail.ru");
+        User savedUser = new User(1L, "Marat", "marat@mail.ru");
+        User expectedUser = new User(1L, "Marat", "new@mail.ru");
 
-        // Создаём объект для частичного обновления
-        User userForUpdate = new User(savedUser.getId(), null, "new@mail.ru");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(savedUser));
+        when(userRepository.findByEmail("new@mail.ru")).thenReturn(Optional.empty());
+        when(userRepository.save(savedUser)).thenReturn(expectedUser);
 
-        // Обновляем пользователя
-        User updatedUser = userService.update(userForUpdate);
+        User result = userService.update(updateUser);
 
-        // Проверяем, что email поменялся, а имя осталось
-        assertEquals("Marat", updatedUser.getName());
-        assertEquals("new@mail.ru", updatedUser.getEmail());
+        assertEquals(expectedUser.getId(), result.getId());
+        assertEquals(expectedUser.getName(), result.getName());
+        assertEquals(expectedUser.getEmail(), result.getEmail());
+
+        verify(userRepository).findById(1L);
+        verify(userRepository).findByEmail("new@mail.ru");
+        verify(userRepository).save(savedUser);
     }
 
     @Test
-    void shouldThrowExceptionWhenUserNotFound() {
-        // Создаём пользователя с несуществующим id
-        User user = new User(999L, "Name", "mail@mail.ru");
+    void shouldThrowValidationExceptionWhenIdIsNullOnUpdate() {
+        User updateUser = new User(null, "New Name", null);
 
-        // Проверяем ошибку
-        assertThrows(NotFoundException.class, () -> userService.update(user));
+        assertThrows(ValidationException.class, () -> userService.update(updateUser));
+    }
+
+    @Test
+    void shouldThrowNotFoundExceptionWhenUserNotFoundOnUpdate() {
+        User updateUser = new User(99L, "New Name", null);
+
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class, () -> userService.update(updateUser));
+    }
+
+    @Test
+    void shouldThrowValidationExceptionWhenEmailIsBlankOnUpdate() {
+        User updateUser = new User(1L, null, " ");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        assertThrows(ValidationException.class, () -> userService.update(updateUser));
+    }
+
+    @Test
+    void shouldThrowConflictExceptionWhenEmailAlreadyExistsOnUpdate() {
+        User updateUser = new User(1L, null, "other@mail.ru");
+        User otherUser = new User(2L, "Other", "other@mail.ru");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findByEmail("other@mail.ru")).thenReturn(Optional.of(otherUser));
+
+        assertThrows(ConflictException.class, () -> userService.update(updateUser));
+    }
+
+    @Test
+    void shouldGetUserById() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        User result = userService.getById(1L);
+
+        assertEquals(user.getId(), result.getId());
+        assertEquals(user.getName(), result.getName());
+        assertEquals(user.getEmail(), result.getEmail());
+    }
+
+    @Test
+    void shouldThrowNotFoundExceptionWhenUserNotFoundById() {
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class, () -> userService.getById(99L));
+    }
+
+    @Test
+    void shouldGetAllUsers() {
+        User secondUser = new User(2L, "Ivan", "ivan@mail.ru");
+
+        when(userRepository.findAll()).thenReturn(List.of(user, secondUser));
+
+        var result = userService.getAll();
+
+        assertEquals(2, result.size());
     }
 
     @Test
     void shouldDeleteUser() {
-        // Сохраняем пользователя
-        User savedUser = userService.create(new User(null, "Marat", "marat@mail.ru"));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
-        // Удаляем пользователя
-        userService.delete(savedUser.getId());
+        userService.delete(1L);
 
-        // Проверяем, что после удаления пользователь не находится
-        assertThrows(NotFoundException.class, () -> userService.getById(savedUser.getId()));
+        verify(userRepository).findById(1L);
+        verify(userRepository).delete(user);
+    }
+
+    @Test
+    void shouldThrowNotFoundExceptionWhenUserNotFoundOnDelete() {
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class, () -> userService.delete(99L));
     }
 }
