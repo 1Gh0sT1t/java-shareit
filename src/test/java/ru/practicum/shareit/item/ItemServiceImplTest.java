@@ -237,17 +237,17 @@ class ItemServiceImplTest {
     void shouldGetItemsByOwnerId() {
         when(userRepository.findById(owner.getId())).thenReturn(Optional.of(owner));
         when(itemRepository.findByOwnerId(owner.getId())).thenReturn(List.of(item));
-        when(bookingRepository.findFirstByItemIdAndStatusAndEndBeforeOrderByEndDesc(
-                org.mockito.Mockito.eq(10L),
+        when(bookingRepository.findByItemIdInAndStatusAndEndBeforeOrderByEndDesc(
+                org.mockito.Mockito.anyList(),
                 org.mockito.Mockito.any(),
                 org.mockito.Mockito.any()
-        )).thenReturn(Optional.empty());
-        when(bookingRepository.findFirstByItemIdAndStatusAndStartAfterOrderByStartAsc(
-                org.mockito.Mockito.eq(10L),
+        )).thenReturn(List.of());
+        when(bookingRepository.findByItemIdInAndStatusAndStartAfterOrderByStartAsc(
+                org.mockito.Mockito.anyList(),
                 org.mockito.Mockito.any(),
                 org.mockito.Mockito.any()
-        )).thenReturn(Optional.empty());
-        when(commentRepository.findByItemId(10L)).thenReturn(List.of());
+        )).thenReturn(List.of());
+        when(commentRepository.findByItemIdIn(org.mockito.Mockito.anyList())).thenReturn(List.of());
 
         var result = itemService.getByOwnerId(owner.getId());
 

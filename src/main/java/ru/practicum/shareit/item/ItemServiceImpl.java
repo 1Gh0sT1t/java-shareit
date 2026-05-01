@@ -18,6 +18,8 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Сервис для работы с вещами.
@@ -87,9 +89,50 @@ public class ItemServiceImpl implements ItemService {
     public Collection<ItemResponseDto> getByOwnerId(Long ownerId) {
         getUserOrThrow(ownerId);
 
-        return itemRepository.findByOwnerId(ownerId)
+        List<Item> items = itemRepository.findByOwnerId(ownerId);
+
+        if (items.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<Long> itemIds = items.stream()
+                .map(Item::getId)
+                .toList();
+
+        LocalDateTime now = LocalDateTime.now();
+
+        Map<Long, Booking> lastBookings = bookingRepository
+                .findByItemIdInAndStatusAndEndBeforeOrderByEndDesc(itemIds, BookingStatus.APPROVED, now)
                 .stream()
-                .map(this::toResponseDtoWithBookings)
+                .collect(Collectors.toMap(
+                        booking -> booking.getItem().getId(),
+                        booking -> booking,
+                        (first, second) -> first
+                ));
+
+        Map<Long, Booking> nextBookings = bookingRepository
+                .findByItemIdInAndStatusAndStartAfterOrderByStartAsc(itemIds, BookingStatus.APPROVED, now)
+                .stream()
+                .collect(Collectors.toMap(
+                        booking -> booking.getItem().getId(),
+                        booking -> booking,
+                        (first, second) -> first
+                ));
+
+        Map<Long, List<CommentDto>> comments = commentRepository.findByItemIdIn(itemIds)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        comment -> comment.getItem().getId(),
+                        Collectors.mapping(CommentMapper::toCommentDto, Collectors.toList())
+                ));
+
+        return items.stream()
+                .map(item -> ItemMapper.toItemResponseDto(
+                        item,
+                        ItemMapper.toBookingShortDto(lastBookings.get(item.getId())),
+                        ItemMapper.toBookingShortDto(nextBookings.get(item.getId())),
+                        comments.getOrDefault(item.getId(), Collections.emptyList())
+                ))
                 .toList();
     }
 
@@ -119,13 +162,7 @@ public class ItemServiceImpl implements ItemService {
             throw new ValidationException("Оставить комментарий может только пользователь с завершённым бронированием");
         }
 
-        Comment comment = new Comment(
-                null,
-                commentDto.getText(),
-                item,
-                author,
-                LocalDateTime.now()
-        );
+        Comment comment = CommentMapper.toComment(commentDto, item, author);
 
         return CommentMapper.toCommentDto(commentRepository.save(comment));
     }
