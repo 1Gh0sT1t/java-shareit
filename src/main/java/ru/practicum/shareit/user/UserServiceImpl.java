@@ -13,44 +13,32 @@ import java.util.Collection;
 @Service
 public class UserServiceImpl implements UserService {
 
-    private final UserStorage userStorage;
+    private final UserRepository userRepository;
 
-    public UserServiceImpl(UserStorage userStorage) {
-        this.userStorage = userStorage;
+    public UserServiceImpl(UserRepository userRepository) {
+        this.userRepository = userRepository;
     }
 
     @Override
     public User create(User user) {
-        // Проверяем, что email заполнен
         validateEmailForCreate(user);
-
-        // Проверяем уникальность email перед созданием
         checkEmailUnique(user.getEmail(), null);
 
-        // Сохраняем нового пользователя
-        return userStorage.create(user);
+        return userRepository.save(user);
     }
 
     @Override
     public User update(User user) {
-        // Проверяем, что идентификатор указан
         if (user.getId() == null) {
             throw new ValidationException("Идентификатор пользователя не указан");
         }
 
-        User savedUser = userStorage.getById(user.getId());
+        User savedUser = getUserOrThrow(user.getId());
 
-        // Проверяем, что пользователь существует
-        if (savedUser == null) {
-            throw new NotFoundException("Пользователь с таким id не найден");
-        }
-
-        // Обновляем имя, если оно пришло
         if (user.getName() != null) {
             savedUser.setName(user.getName());
         }
 
-        // Обновляем email, если он пришёл
         if (user.getEmail() != null) {
             if (user.getEmail().isBlank()) {
                 throw new ValidationException("Электронная почта не должна быть пустой");
@@ -60,36 +48,28 @@ public class UserServiceImpl implements UserService {
             savedUser.setEmail(user.getEmail());
         }
 
-        return userStorage.update(savedUser);
+        return userRepository.save(savedUser);
     }
 
     @Override
     public User getById(Long userId) {
-
-        User user = userStorage.getById(userId);
-
-        if (user == null) {
-            throw new NotFoundException("Пользователь с таким id не найден");
-        }
-
-        return user;
+        return getUserOrThrow(userId);
     }
 
     @Override
     public Collection<User> getAll() {
-        // Возвращаем всех пользователей
-        return userStorage.getAll();
+        return userRepository.findAll();
     }
 
     @Override
     public void delete(Long userId) {
-        // Проверяем, что пользователь найден
-        if (userStorage.getById(userId) == null) {
-            throw new NotFoundException("Пользователь с таким id не найден");
-        }
+        User user = getUserOrThrow(userId);
+        userRepository.delete(user);
+    }
 
-        // Удаляем пользователя
-        userStorage.delete(userId);
+    private User getUserOrThrow(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new NotFoundException("Пользователь с таким id не найден"));
     }
 
     private void validateEmailForCreate(User user) {
@@ -99,7 +79,8 @@ public class UserServiceImpl implements UserService {
     }
 
     private void checkEmailUnique(String email, Long userId) {
-        User userWithEmail = userStorage.getByEmail(email);
+        User userWithEmail = userRepository.findByEmail(email)
+                .orElse(null);
 
         if (userWithEmail != null && !userWithEmail.getId().equals(userId)) {
             throw new ConflictException("Пользователь с таким email уже существует");
