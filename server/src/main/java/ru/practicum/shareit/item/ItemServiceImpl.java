@@ -160,11 +160,10 @@ public class ItemServiceImpl implements ItemService {
 
         validateComment(commentDto);
 
-        boolean hasCompletedBooking = bookingRepository.existsByItemIdAndBookerIdAndEndBefore(
-                itemId,
-                userId,
-                LocalDateTime.now()
-        );
+        boolean hasCompletedBooking = bookingRepository
+                .findByBookerIdAndEndBeforeOrderByStartDesc(userId, LocalDateTime.now())
+                .stream()
+                .anyMatch(booking -> booking.getItem().getId().equals(itemId));
 
         if (!hasCompletedBooking) {
             throw new ValidationException("Оставить комментарий может только пользователь с завершённым бронированием");

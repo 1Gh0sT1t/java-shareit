@@ -13,13 +13,13 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import ru.practicum.shareit.request.dto.ItemRequestCreateDto;
 
+import static ru.practicum.shareit.util.ApiConstants.USER_ID_HEADER;
+
 @Controller
 @RequestMapping("/requests")
 @RequiredArgsConstructor
 @Slf4j
 public class ItemRequestController {
-    private static final String USER_ID_HEADER = "X-Sharer-User-Id";
-
     private final ItemRequestClient itemRequestClient;
 
     @PostMapping

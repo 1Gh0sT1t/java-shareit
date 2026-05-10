@@ -16,6 +16,8 @@ import ru.practicum.shareit.booking.dto.BookingDto;
 
 import java.util.Collection;
 
+import static ru.practicum.shareit.util.ApiConstants.USER_ID_HEADER;
+
 /**
  * Контроллер бронирований.
  */
@@ -23,8 +25,6 @@ import java.util.Collection;
 @RequestMapping("/bookings")
 @RequiredArgsConstructor
 public class BookingController {
-    private static final String USER_ID_HEADER = "X-Sharer-User-Id";
-
     private final BookingService bookingService;
 
     @PostMapping

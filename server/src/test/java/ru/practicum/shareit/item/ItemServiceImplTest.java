@@ -6,7 +6,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import ru.practicum.shareit.booking.Booking;
 import ru.practicum.shareit.booking.BookingRepository;
+import ru.practicum.shareit.booking.BookingStatus;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.exception.ValidationException;
 import ru.practicum.shareit.item.dto.CommentDto;
@@ -274,16 +276,24 @@ class ItemServiceImplTest {
     @Test
     void shouldAddComment() {
         CommentDto input = new CommentDto(null, "Отличная вещь", null, null);
-        LocalDateTime created = LocalDateTime.now();
-        Comment savedComment = new Comment(1L, "Отличная вещь", item, booker, created);
+        LocalDateTime now = LocalDateTime.now();
+        Comment savedComment = new Comment(1L, "Отличная вещь", item, booker, now);
+
+        Booking booking = new Booking(
+                1L,
+                now.minusDays(2),
+                now.minusDays(1),
+                item,
+                booker,
+                BookingStatus.APPROVED
+        );
 
         when(itemRepository.findById(10L)).thenReturn(Optional.of(item));
         when(userRepository.findById(booker.getId())).thenReturn(Optional.of(booker));
-        when(bookingRepository.existsByItemIdAndBookerIdAndEndBefore(
-                org.mockito.Mockito.eq(10L),
+        when(bookingRepository.findByBookerIdAndEndBeforeOrderByStartDesc(
                 org.mockito.Mockito.eq(booker.getId()),
                 org.mockito.Mockito.any()
-        )).thenReturn(true);
+        )).thenReturn(List.of(booking));
         when(commentRepository.save(org.mockito.Mockito.any(Comment.class))).thenReturn(savedComment);
 
         CommentDto result = itemService.addComment(10L, booker.getId(), input);
@@ -309,11 +319,10 @@ class ItemServiceImplTest {
 
         when(itemRepository.findById(10L)).thenReturn(Optional.of(item));
         when(userRepository.findById(booker.getId())).thenReturn(Optional.of(booker));
-        when(bookingRepository.existsByItemIdAndBookerIdAndEndBefore(
-                org.mockito.Mockito.eq(10L),
+        when(bookingRepository.findByBookerIdAndEndBeforeOrderByStartDesc(
                 org.mockito.Mockito.eq(booker.getId()),
                 org.mockito.Mockito.any()
-        )).thenReturn(false);
+        )).thenReturn(List.of());
 
         assertThrows(ValidationException.class, () -> itemService.addComment(10L, booker.getId(), input));
     }

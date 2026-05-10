@@ -17,13 +17,13 @@ import ru.practicum.shareit.item.dto.CommentCreateDto;
 import ru.practicum.shareit.item.dto.ItemCreateDto;
 import ru.practicum.shareit.item.dto.ItemUpdateDto;
 
+import static ru.practicum.shareit.util.ApiConstants.USER_ID_HEADER;
+
 @Controller
 @RequestMapping("/items")
 @RequiredArgsConstructor
 @Slf4j
 public class ItemController {
-    private static final String USER_ID_HEADER = "X-Sharer-User-Id";
-
     private final ItemClient itemClient;
 
     @PostMapping

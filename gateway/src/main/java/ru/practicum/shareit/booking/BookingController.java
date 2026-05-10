@@ -19,14 +19,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import ru.practicum.shareit.booking.dto.BookItemRequestDto;
 import ru.practicum.shareit.booking.dto.BookingState;
 
+import static ru.practicum.shareit.util.ApiConstants.USER_ID_HEADER;
+
 @Controller
 @RequestMapping(path = "/bookings")
 @RequiredArgsConstructor
 @Slf4j
 @Validated
 public class BookingController {
-    private static final String USER_ID_HEADER = "X-Sharer-User-Id";
-
     private final BookingClient bookingClient;
 
     @GetMapping
